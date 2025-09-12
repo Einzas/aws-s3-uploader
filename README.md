@@ -93,8 +93,11 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
 # File Upload Configuration
-MAX_FILE_SIZE=10485760
+MAX_FILE_SIZE=524288000
 ALLOWED_FILE_TYPES=image/jpeg,image/png,image/gif,application/pdf,text/plain
+
+# CORS Configuration
+ALLOWED_ORIGINS=http://localhost:3000,https://your-frontend-domain.com
 ```
 
 4. **Compilar el proyecto**

@@ -75,10 +75,24 @@ class App {
     // CORS
     this.app.use(
       cors({
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || [
-          'http://localhost:3000',
-        ],
+        origin: (origin, callback) => {
+          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+            'http://localhost:3000',
+            'http://localhost:3001',
+          ];
+
+          // Permitir requests sin origin (Postman, apps móviles, etc)
+          if (!origin) return callback(null, true);
+
+          if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error(`Origin ${origin} not allowed by CORS`));
+          }
+        },
         credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
       })
     );
 
