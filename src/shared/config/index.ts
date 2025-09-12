@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { FileCategoryHandler } from '@domain/value-objects';
 
 dotenv.config();
 
@@ -37,13 +38,9 @@ export const config: Config = {
   },
   upload: {
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10), // 10MB
-    allowedFileTypes: process.env.ALLOWED_FILE_TYPES?.split(',') || [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'application/pdf',
-      'text/plain',
-    ],
+    allowedFileTypes:
+      process.env.ALLOWED_FILE_TYPES?.split(',') ||
+      FileCategoryHandler.getAllAllowedMimeTypes(),
   },
   security: {
     jwtSecret: process.env.JWT_SECRET || 'your-secret-here',

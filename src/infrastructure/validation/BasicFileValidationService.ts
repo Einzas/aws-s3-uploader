@@ -1,4 +1,5 @@
 import { FileValidationService, ValidationResult } from '@domain/services';
+import { FileCategoryHandler } from '@domain/value-objects';
 
 export class BasicFileValidationService implements FileValidationService {
   private readonly maxFileSize: number;
@@ -9,14 +10,8 @@ export class BasicFileValidationService implements FileValidationService {
     allowedMimeTypes?: string[]
   ) {
     this.maxFileSize = maxFileSize;
-    this.allowedMimeTypes = allowedMimeTypes || [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'application/pdf',
-      'text/plain',
-    ];
+    this.allowedMimeTypes =
+      allowedMimeTypes || FileCategoryHandler.getAllAllowedMimeTypes();
   }
 
   async validateFile(
