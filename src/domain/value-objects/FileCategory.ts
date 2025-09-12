@@ -43,6 +43,10 @@ export class FileCategoryHandler {
         'video/webm',
         'video/3gpp',
         'video/x-flv',
+        'video/ogg',
+        'video/x-matroska', // .mkv
+        'video/3gpp2', // .3gp2
+        'video/3gpp', // .3g
       ],
       [FileCategory.AUDIO]: [
         'audio/mpeg', // .mp3
