@@ -1,6 +1,7 @@
 import { UseCase } from '@application/common';
 import { UploadFileRequest, UploadFileResponse } from './UploadFileDto';
 import { ValidationError, SecurityError } from '@application/common';
+import { logger, LogCategory } from '@shared/services';
 import {
   FileEntity,
   FileName,
@@ -22,91 +23,174 @@ export class UploadFileUseCase
   ) {}
 
   async execute(request: UploadFileRequest): Promise<UploadFileResponse> {
-    // 1. Validate the file
-    const validationResult = await this.validationService.validateFile(
-      request.fileBuffer,
-      request.fileName,
-      request.mimeType,
-      request.size
-    );
-
-    if (!validationResult.isValid) {
-      throw new ValidationError(
-        `File validation failed: ${validationResult.errors.join(', ')}`
-      );
-    }
-
-    // 2. Create domain objects
-    const fileName = FileName.create(
-      validationResult.sanitizedName || request.fileName
-    );
-    const fileSize = FileSize.create(request.size);
-    const mimeType = MimeType.create(request.mimeType);
-
-    // Generate S3 key with category-based folder structure
-    const category = mimeType.getCategory();
-    const s3Key = S3Key.generateFromFileNameWithCategory(
-      fileName.toString(),
-      category
-    );
-
-    // 3. Create file entity
-    const fileEntity = FileEntity.create(
-      fileName,
-      fileSize,
-      mimeType,
-      s3Key,
-      request.metadata || {}
-    );
+    const startTime = logger.startOperation('UploadFile', {
+      category: LogCategory.UPLOAD,
+      fileName: request.fileName,
+      fileSize: request.size,
+      mimeType: request.mimeType,
+    });
 
     try {
-      // 4. Save file metadata first
-      await this.fileRepository.save(fileEntity);
+      // 1. Validate the file
+      logger.validation('Starting file validation', {
+        fileName: request.fileName,
+        fileSize: request.size,
+        mimeType: request.mimeType,
+      });
 
-      // 5. Mark as uploading
-      fileEntity.markAsUploading();
-      await this.fileRepository.update(fileEntity);
-
-      // 6. Upload to S3
-      const uploadResult = await this.storageService.upload(
-        s3Key,
+      const validationResult = await this.validationService.validateFile(
         request.fileBuffer,
-        mimeType.toString(),
-        {
-          originalName: fileName.toString(),
-          uploadedBy: request.metadata?.uploadedBy || 'anonymous',
-          uploadedAt: new Date().toISOString(),
-          category: category,
-        }
+        request.fileName,
+        request.mimeType,
+        request.size
       );
 
-      // 7. Mark as uploaded
-      fileEntity.markAsUploaded(uploadResult.url);
-      await this.fileRepository.update(fileEntity);
+      if (!validationResult.isValid) {
+        logger.validation('File validation failed', {
+          fileName: request.fileName,
+          errors: validationResult.errors,
+        });
+        throw new ValidationError(
+          `File validation failed: ${validationResult.errors.join(', ')}`
+        );
+      }
 
-      return {
+      logger.validation('File validation successful', {
+        fileName: request.fileName,
+        sanitizedName: validationResult.sanitizedName,
+      });
+
+      // 2. Create domain objects
+      const fileName = FileName.create(
+        validationResult.sanitizedName || request.fileName
+      );
+      const fileSize = FileSize.create(request.size);
+      const mimeType = MimeType.create(request.mimeType);
+
+      // Generate S3 key with category-based folder structure
+      const category = mimeType.getCategory();
+      const s3Key = S3Key.generateFromFileNameWithCategory(
+        fileName.toString(),
+        category
+      );
+
+      logger.upload('Generated S3 key for upload', {
+        fileName: fileName.toString(),
+        s3Key: s3Key.toString(),
+        category,
+      });
+
+      // 3. Create file entity
+      const fileEntity = FileEntity.create(
+        fileName,
+        fileSize,
+        mimeType,
+        s3Key,
+        request.metadata || {}
+      );
+
+      logger.upload('File entity created', {
         fileId: fileEntity.getId().toString(),
         fileName: fileEntity.getName().toString(),
-        size: fileEntity.getSize().toBytes(),
-        mimeType: fileEntity.getMimeType().toString(),
-        category: fileEntity.getCategory(),
-        status: fileEntity.getStatus(),
-        url: fileEntity.getUrl(),
-        uploadedAt: fileEntity.getUpdatedAt(),
-      };
-    } catch (error) {
-      // Mark as failed if something goes wrong
-      try {
-        fileEntity.markAsFailed();
-        await this.fileRepository.update(fileEntity);
-      } catch (updateError) {
-        // Log update error but don't mask the original error
-        console.error('Failed to update file status to failed:', updateError);
-      }
+      });
 
-      if (error instanceof Error) {
-        throw new SecurityError(`Upload failed: ${error.message}`);
+      try {
+        // 4. Save file metadata first
+        await this.fileRepository.save(fileEntity);
+        logger.upload('File metadata saved to repository', {
+          fileId: fileEntity.getId().toString(),
+        });
+
+        // 5. Mark as uploading
+        fileEntity.markAsUploading();
+        await this.fileRepository.update(fileEntity);
+        logger.upload('File marked as uploading', {
+          fileId: fileEntity.getId().toString(),
+        });
+
+        // 6. Upload to S3
+        logger.s3('Starting S3 upload', {
+          fileId: fileEntity.getId().toString(),
+          s3Key: s3Key.toString(),
+          fileSize: request.size,
+        });
+
+        const uploadResult = await this.storageService.upload(
+          s3Key,
+          request.fileBuffer,
+          mimeType.toString(),
+          {
+            originalName: fileName.toString(),
+            uploadedBy: request.metadata?.uploadedBy || 'anonymous',
+            uploadedAt: new Date().toISOString(),
+            category: category,
+          }
+        );
+
+        logger.s3('S3 upload successful', {
+          fileId: fileEntity.getId().toString(),
+          s3Key: s3Key.toString(),
+          url: uploadResult.url,
+        });
+
+        // 7. Mark as uploaded
+        fileEntity.markAsUploaded(uploadResult.url);
+        await this.fileRepository.update(fileEntity);
+
+        logger.upload('File upload completed successfully', {
+          fileId: fileEntity.getId().toString(),
+          fileName: fileEntity.getName().toString(),
+          url: uploadResult.url,
+        });
+
+        logger.endOperation('UploadFile', startTime, {
+          category: LogCategory.UPLOAD,
+          fileId: fileEntity.getId().toString(),
+          success: true,
+        });
+
+        return {
+          fileId: fileEntity.getId().toString(),
+          fileName: fileEntity.getName().toString(),
+          size: fileEntity.getSize().toBytes(),
+          mimeType: fileEntity.getMimeType().toString(),
+          category: fileEntity.getCategory(),
+          status: fileEntity.getStatus(),
+          url: fileEntity.getUrl(),
+          uploadedAt: fileEntity.getUpdatedAt(),
+        };
+      } catch (error) {
+        // Mark as failed if something goes wrong
+        try {
+          fileEntity.markAsFailed();
+          await this.fileRepository.update(fileEntity);
+          logger.error('File marked as failed', error, {
+            category: LogCategory.UPLOAD,
+            fileId: fileEntity.getId().toString(),
+          });
+        } catch (updateError) {
+          logger.error('Failed to update file status to failed', updateError, {
+            category: LogCategory.ERROR,
+            fileId: fileEntity.getId().toString(),
+          });
+        }
+
+        logger.error('Upload failed', error, {
+          category: LogCategory.UPLOAD,
+          fileName: request.fileName,
+          fileSize: request.size,
+        });
+
+        if (error instanceof Error) {
+          throw new SecurityError(`Upload failed: ${error.message}`);
+        }
+        throw error;
       }
+    } catch (error) {
+      logger.endOperation('UploadFile', startTime, {
+        category: LogCategory.UPLOAD,
+        success: false,
+      });
       throw error;
     }
   }

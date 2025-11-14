@@ -1,5 +1,6 @@
 import { FileValidationService, ValidationResult } from '@domain/services';
 import { FileCategoryHandler } from '@domain/value-objects';
+import { logger } from '@shared/services';
 
 export class BasicFileValidationService implements FileValidationService {
   private readonly maxFileSize: number;
@@ -142,17 +143,18 @@ export class BasicFileValidationService implements FileValidationService {
     );
 
     if (!hasValidSignature) {
-      // Log para debug (solo en desarrollo)
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`File signature mismatch for ${mimeType}:`);
-        console.log('Expected one of:', expectedSignatures);
-        console.log(
-          'Got:',
-          fileHeader
-            .slice(0, 8)
-            .map((b) => '0x' + b.toString(16).padStart(2, '0'))
-        );
-      }
+      // Log para debug de firmas inválidas
+      logger.validation('File signature mismatch detected', {
+        mimeType,
+        expectedSignatures: expectedSignatures.map((sig) =>
+          sig.map((b) => '0x' + b.toString(16).padStart(2, '0')).join(' ')
+        ),
+        actualHeader: fileHeader
+          .slice(0, 8)
+          .map((b) => '0x' + b.toString(16).padStart(2, '0'))
+          .join(' '),
+      });
+
       return `File signature does not match MIME type '${mimeType}'`;
     }
 

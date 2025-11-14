@@ -2,10 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { config, validateConfig } from '@shared/config';
+import { logger } from '@shared/services';
 import {
   errorHandler,
   generalRateLimit,
   requestLogger,
+  httpLogger,
 } from '@presentation/middlewares';
 import { FileController } from '@presentation/controllers';
 import {
@@ -99,7 +101,10 @@ class App {
     // Rate limiting
     this.app.use(generalRateLimit);
 
-    // Request logging
+    // HTTP logging (Morgan + Winston)
+    this.app.use(httpLogger);
+
+    // Request logging detallado
     this.app.use(requestLogger);
 
     // Body parsing
@@ -148,16 +153,35 @@ class App {
       validateConfig();
 
       this.app.listen(config.server.port, () => {
-        console.log(`🚀 Server is running on port ${config.server.port}`);
-        console.log(`📝 Environment: ${config.server.nodeEnv}`);
-        console.log(`🪣 S3 Bucket: ${config.aws.s3BucketName}`);
-        console.log(`📁 Max file size: ${config.upload.maxFileSize} bytes`);
-        console.log(
-          `🔒 Rate limit: ${config.security.rateLimitMaxRequests} requests per ${config.security.rateLimitWindowMs}ms`
+        logger.info(`Server is running on port ${config.server.port}`, {
+          category: 'application' as any,
+          port: config.server.port,
+          environment: config.server.nodeEnv,
+        });
+        logger.info(`Environment: ${config.server.nodeEnv}`, {
+          category: 'application' as any,
+        });
+        logger.info(`S3 Bucket: ${config.aws.s3BucketName}`, {
+          category: 'application' as any,
+          bucket: config.aws.s3BucketName,
+        });
+        logger.info(`Max file size: ${config.upload.maxFileSize} bytes`, {
+          category: 'application' as any,
+          maxFileSize: config.upload.maxFileSize,
+        });
+        logger.info(
+          `Rate limit: ${config.security.rateLimitMaxRequests} requests per ${config.security.rateLimitWindowMs}ms`,
+          {
+            category: 'application' as any,
+            rateLimitMaxRequests: config.security.rateLimitMaxRequests,
+            rateLimitWindowMs: config.security.rateLimitWindowMs,
+          }
         );
       });
     } catch (error) {
-      console.error('Failed to start server:', error);
+      logger.error('Failed to start server', error, {
+        category: 'application' as any,
+      });
       process.exit(1);
     }
   }

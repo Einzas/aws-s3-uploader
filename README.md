@@ -41,7 +41,11 @@ src/
 - **Almacenamiento S3**: Integración completa con AWS S3
 - **API RESTful**: Endpoints para listar, subir, obtener y eliminar archivos
 - **Filtrado por categoría**: Listar archivos filtrados por tipo
-- **Logging**: Sistema de logging estructurado
+- **📊 Logging Profesional**: Sistema completo de logs con Winston
+  - Logs categorizados (HTTP, S3, Upload, Validation, Security, Performance)
+  - Rotación diaria automática
+  - Retención configurable
+  - Archivos separados por tipo
 - **Testing**: Tests unitarios con Jest
 - **TypeScript**: Tipado fuerte y mejor experiencia de desarrollo
 - **Docker ready**: Configuración para contenedores
@@ -432,6 +436,36 @@ AWS_REGION=us-east-1
 - Implementar monitoring
 - Configurar backup del bucket S3
 - Usar AWS CloudFront para CDN
+- **Revisar logs periódicamente** en el directorio `logs/`
+
+## 📊 Sistema de Logging
+
+Este proyecto incluye un sistema de logging profesional con Winston. Ver documentación completa:
+
+- **[LOGGING_README.md](./LOGGING_README.md)**: Guía rápida de logging
+- **[LOGGING_SUMMARY.md](./LOGGING_SUMMARY.md)**: Resumen completo de cambios
+- **[docs/LOGGING.md](./docs/LOGGING.md)**: Documentación técnica detallada
+
+### Logs Disponibles
+
+```bash
+# Ver logs en tiempo real
+tail -f logs/combined-$(date +%Y-%m-%d).log
+
+# Ver solo errores
+tail -f logs/error-$(date +%Y-%m-%d).log
+
+# Ver operaciones S3
+tail -f logs/s3-$(date +%Y-%m-%d).log
+```
+
+Los logs se guardan automáticamente en:
+- `logs/combined-*.log` - Todos los logs
+- `logs/error-*.log` - Solo errores
+- `logs/http-*.log` - Requests HTTP
+- `logs/s3-*.log` - Operaciones S3
+- `logs/security-*.log` - Eventos de seguridad
+- `logs/performance-*.log` - Métricas de rendimiento
 
 ## 🤝 Contribución
 
