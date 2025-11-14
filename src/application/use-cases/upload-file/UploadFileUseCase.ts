@@ -77,7 +77,7 @@ export class UploadFileUseCase
       logger.upload('Generated S3 key for upload', {
         fileName: fileName.toString(),
         s3Key: s3Key.toString(),
-        category,
+        fileCategory: category,
       });
 
       // 3. Create file entity
