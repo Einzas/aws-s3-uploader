@@ -1,18 +1,15 @@
 export class FileSize {
-  private static readonly MAX_SIZE = 100 * 1024 * 1024; // 100MB default
+  private static readonly MAX_SIZE = 500 * 1024 * 1024; // 500MB default
 
-  private constructor(private readonly bytes: number) {
+  private constructor(
+    private readonly bytes: number,
+    private readonly maxSize?: number
+  ) {
     this.validate();
   }
 
   static create(bytes: number, maxSize?: number): FileSize {
-    const instance = new FileSize(bytes);
-    if (maxSize && bytes > maxSize) {
-      throw new Error(
-        `File size exceeds maximum allowed size of ${maxSize} bytes`
-      );
-    }
-    return instance;
+    return new FileSize(bytes, maxSize);
   }
 
   private validate(): void {
@@ -20,9 +17,10 @@ export class FileSize {
       throw new Error('File size cannot be negative');
     }
 
-    if (this.bytes > FileSize.MAX_SIZE) {
+    const limit = this.maxSize || FileSize.MAX_SIZE;
+    if (this.bytes > limit) {
       throw new Error(
-        `File size exceeds maximum allowed size of ${FileSize.MAX_SIZE} bytes`
+        `File size exceeds maximum allowed size of ${limit} bytes`
       );
     }
   }

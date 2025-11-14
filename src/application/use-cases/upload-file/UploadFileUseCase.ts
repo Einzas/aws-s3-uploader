@@ -2,6 +2,7 @@ import { UseCase } from '@application/common';
 import { UploadFileRequest, UploadFileResponse } from './UploadFileDto';
 import { ValidationError, SecurityError } from '@application/common';
 import { logger, LogCategory } from '@shared/services';
+import { config } from '@shared/config';
 import {
   FileEntity,
   FileName,
@@ -64,7 +65,7 @@ export class UploadFileUseCase
       const fileName = FileName.create(
         validationResult.sanitizedName || request.fileName
       );
-      const fileSize = FileSize.create(request.size);
+      const fileSize = FileSize.create(request.size, config.upload.maxFileSize);
       const mimeType = MimeType.create(request.mimeType);
 
       // Generate S3 key with category-based folder structure
