@@ -107,9 +107,9 @@ class App {
     // Request logging detallado
     this.app.use(requestLogger);
 
-    // Body parsing
-    this.app.use(express.json({ limit: '1mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+    // Body parsing - límite aumentado a 500MB para archivos grandes
+    this.app.use(express.json({ limit: '500mb' }));
+    this.app.use(express.urlencoded({ extended: true, limit: '500mb' }));
   }
 
   private setupRoutes(): void {

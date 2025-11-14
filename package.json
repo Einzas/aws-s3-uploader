@@ -79,5 +79,13 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "_moduleAliases": {
+  "@shared": "dist/shared",
+  "@domain": "dist/domain",
+  "@application": "dist/application",
+  "@infrastructure": "dist/infrastructure",
+  "@presentation": "dist/presentation"
+}
+
 }
