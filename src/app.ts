@@ -71,6 +71,9 @@ class App {
   }
 
   private setupMiddlewares(): void {
+    // Trust proxy - necesario cuando estás detrás de nginx/load balancer
+    this.app.set('trust proxy', 1);
+
     // Security middleware
     this.app.use(helmet());
 
