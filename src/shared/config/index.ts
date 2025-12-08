@@ -37,7 +37,7 @@ export const config: Config = {
     s3BucketName: process.env.S3_BUCKET_NAME || '',
   },
   upload: {
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '524288000', 10), // 500MB
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '1610612736', 10), // 1.5GB
     allowedFileTypes:
       process.env.ALLOWED_FILE_TYPES?.split(',') ||
       FileCategoryHandler.getAllAllowedMimeTypes(),

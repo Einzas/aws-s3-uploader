@@ -107,9 +107,10 @@ class App {
     // Request logging detallado
     this.app.use(requestLogger);
 
-    // Body parsing - límite aumentado a 500MB para archivos grandes
-    this.app.use(express.json({ limit: '500mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+    // Body parsing - límite dinámico desde config (.env)
+    const maxSize = Math.ceil(config.upload.maxFileSize / (1024 * 1024)) + 'mb';
+    this.app.use(express.json({ limit: maxSize }));
+    this.app.use(express.urlencoded({ extended: true, limit: maxSize }));
   }
 
   private setupRoutes(): void {

@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import { config } from '@shared/config';
 import {
   UploadFileUseCase,
   GetFileUseCase,
@@ -8,11 +9,11 @@ import {
 } from '@application/use-cases';
 import { FileCategoryHandler } from '@domain/value-objects';
 
-// Configure multer for memory storage
+// Configure multer for memory storage with dynamic limit from config
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB limit
+    fileSize: config.upload.maxFileSize, // Use config from .env
   },
   fileFilter: (req, file, cb) => {
     const allowedMimeTypes = FileCategoryHandler.getAllAllowedMimeTypes();
