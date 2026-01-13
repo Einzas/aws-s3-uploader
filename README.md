@@ -29,6 +29,7 @@ src/
 ## 🚀 Características
 
 - **Arquitectura DDD**: Separación clara de responsabilidades
+- **Soporte de Archivos Grandes**: Hasta 5GB con disk storage y streaming
 - **Organización por categorías**: Archivos organizados automáticamente en carpetas
   - `images/` - Imágenes (JPEG, PNG, GIF, WebP, etc.)
   - `documents/` - Documentos (PDF, Word, Excel, PowerPoint, etc.)
@@ -466,6 +467,30 @@ Los logs se guardan automáticamente en:
 - `logs/s3-*.log` - Operaciones S3
 - `logs/security-*.log` - Eventos de seguridad
 - `logs/performance-*.log` - Métricas de rendimiento
+
+## 🔧 Troubleshooting
+
+### Problema con archivos >1GB (502 Bad Gateway)
+
+Si experimentas errores 502 al subir archivos grandes:
+
+1. **Ver guía completa**: [LARGE-FILES-TROUBLESHOOTING.md](LARGE-FILES-TROUBLESHOOTING.md)
+2. **Verificar configuración de Apache** (timeouts, límites)
+3. **Asegurar espacio en disco** para `temp-uploads/`
+4. **Monitorear logs** durante el upload
+
+### Limpieza de Archivos Temporales
+
+Configurar cron para limpiar archivos temporales antiguos:
+
+```bash
+# Hacer ejecutable
+chmod +x cleanup-temp.sh
+
+# Agregar a crontab (ejecutar cada hora)
+crontab -e
+# Agregar: 0 * * * * /path/to/aws-s3-uploader/cleanup-temp.sh
+```
 
 ## 🤝 Contribución
 

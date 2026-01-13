@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import * as path from 'path';
+import * as fs from 'fs';
 import { config } from '@shared/config';
 import {
   UploadFileUseCase,
@@ -9,9 +11,25 @@ import {
 } from '@application/use-cases';
 import { FileCategoryHandler } from '@domain/value-objects';
 
-// Configure multer for memory storage with dynamic limit from config
+// Crear directorio temporal si no existe
+const tempDir = path.join(process.cwd(), 'temp-uploads');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+}
+
+// Configure multer for DISK storage (mejor para archivos grandes)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, tempDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: storage, // Usar disk storage en lugar de memory
   limits: {
     fileSize: config.upload.maxFileSize, // Use config from .env
   },
@@ -67,6 +85,8 @@ export class FileController {
     res: Response,
     next: NextFunction
   ): Promise<void> {
+    let tempFilePath: string | undefined;
+    
     try {
       if (!req.file) {
         res.status(400).json({
@@ -78,9 +98,15 @@ export class FileController {
         return;
       }
 
+      // Guardar path del archivo temporal para limpieza
+      tempFilePath = req.file.path;
+
+      // Leer archivo desde disco en lugar de req.file.buffer
+      const fileBuffer = await fs.promises.readFile(req.file.path);
+
       const uploadRequest = {
         fileName: req.file.originalname,
-        fileBuffer: req.file.buffer,
+        fileBuffer: fileBuffer,
         mimeType: req.file.mimetype,
         size: req.file.size,
         metadata: {
@@ -93,11 +119,24 @@ export class FileController {
       const result =
         await this.dependencies.uploadFileUseCase.execute(uploadRequest);
 
+      // Limpiar archivo temporal después de upload exitoso
+      if (tempFilePath) {
+        await fs.promises.unlink(tempFilePath).catch(err => 
+          console.error('Error deleting temp file:', err)
+        );
+      }
+
       res.status(201).json({
         success: true,
         data: result,
       });
     } catch (error) {
+      // Limpiar archivo temporal en caso de error
+      if (tempFilePath) {
+        await fs.promises.unlink(tempFilePath).catch(err => 
+          console.error('Error deleting temp file:', err)
+        );
+      }
       next(error);
     }
   }

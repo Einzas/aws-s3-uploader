@@ -35,6 +35,7 @@ coverage/
 # Temporary files
 tmp/
 temp/
+temp-uploads/
 
 # Uploaded files (development)
 uploads/
