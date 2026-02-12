@@ -4,10 +4,13 @@ import {
   DeleteObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+import * as fs from 'fs';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { FileStorageService, UploadResult } from '@domain/services';
 import { S3Key } from '@domain/value-objects';
 import { logger } from '@shared/services';
+import { config } from '@shared/config';
 
 export class S3FileStorageService implements FileStorageService {
   private readonly s3Client: S3Client;
@@ -68,6 +71,68 @@ export class S3FileStorageService implements FileStorageService {
         key: key.toString(),
         bucket: this.bucketName,
         duration,
+      });
+      throw error;
+    }
+  }
+
+  async uploadFromFilePath(
+    key: S3Key,
+    filePath: string,
+    mimeType: string,
+    metadata?: Record<string, string>
+  ): Promise<UploadResult> {
+    const startTime = Date.now();
+
+    try {
+      const fileStream = fs.createReadStream(filePath);
+
+      logger.s3('Starting S3 multipart upload from file path', {
+        key: key.toString(),
+        mimeType,
+        bucket: this.bucketName,
+        filePath,
+        queueSize: config.upload.multipartQueueSize,
+        partSize: config.upload.multipartPartSizeBytes,
+      });
+
+      const upload = new Upload({
+        client: this.s3Client,
+        params: {
+          Bucket: this.bucketName,
+          Key: key.toString(),
+          Body: fileStream,
+          ContentType: mimeType,
+          Metadata: metadata,
+          ServerSideEncryption: 'AES256',
+        },
+        queueSize: config.upload.multipartQueueSize,
+        partSize: config.upload.multipartPartSizeBytes,
+        leavePartsOnError: false,
+      });
+
+      const result = await upload.done();
+
+      const duration = Date.now() - startTime;
+      logger.s3('S3 multipart upload successful', {
+        key: key.toString(),
+        etag: result.ETag,
+        duration,
+        bucket: this.bucketName,
+      });
+
+      return {
+        url: this.getFileUrl(key),
+        key: key.toString(),
+        etag: result.ETag,
+      };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error('S3 multipart upload failed', error, {
+        key: key.toString(),
+        bucket: this.bucketName,
+        duration,
+        filePath,
       });
       throw error;
     }

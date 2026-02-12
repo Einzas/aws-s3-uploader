@@ -14,6 +14,13 @@ export interface FileStorageService {
     metadata?: Record<string, string>
   ): Promise<UploadResult>;
 
+  uploadFromFilePath?(
+    key: S3Key,
+    filePath: string,
+    mimeType: string,
+    metadata?: Record<string, string>
+  ): Promise<UploadResult>;
+
   delete(key: S3Key): Promise<void>;
 
   generatePresignedUrl(key: S3Key, expiresIn?: number): Promise<string>;

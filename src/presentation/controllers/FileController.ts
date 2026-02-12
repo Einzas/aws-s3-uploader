@@ -11,6 +11,9 @@ import {
 } from '@application/use-cases';
 import { FileCategoryHandler } from '@domain/value-objects';
 
+const VALIDATION_CHUNK_SIZE = 64 * 1024;
+let activeLargeUploads = 0;
+
 // Crear directorio temporal si no existe
 const tempDir = path.join(process.cwd(), 'temp-uploads');
 if (!fs.existsSync(tempDir)) {
@@ -43,6 +46,24 @@ const upload = multer({
     }
   },
 });
+
+async function readValidationChunk(filePath: string): Promise<Buffer> {
+  const fileHandle = await fs.promises.open(filePath, 'r');
+
+  try {
+    const buffer = Buffer.alloc(VALIDATION_CHUNK_SIZE);
+    const { bytesRead } = await fileHandle.read(
+      buffer,
+      0,
+      VALIDATION_CHUNK_SIZE,
+      0
+    );
+
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await fileHandle.close();
+  }
+}
 
 export interface FileControllerDependencies {
   uploadFileUseCase: UploadFileUseCase;
@@ -86,6 +107,7 @@ export class FileController {
     next: NextFunction
   ): Promise<void> {
     let tempFilePath: string | undefined;
+    let isLargeUploadInProgress = false;
     
     try {
       if (!req.file) {
@@ -101,12 +123,33 @@ export class FileController {
       // Guardar path del archivo temporal para limpieza
       tempFilePath = req.file.path;
 
-      // Leer archivo desde disco en lugar de req.file.buffer
-      const fileBuffer = await fs.promises.readFile(req.file.path);
+      const isLargeFile =
+        req.file.size >= config.upload.largeFileThresholdBytes;
+
+      if (isLargeFile) {
+        if (
+          activeLargeUploads >= config.upload.maxConcurrentLargeUploads
+        ) {
+          res.status(429).json({
+            error: {
+              code: 'TOO_MANY_LARGE_UPLOADS',
+              message:
+                'Too many large uploads in progress. Please retry in a moment.',
+            },
+          });
+          return;
+        }
+
+        activeLargeUploads += 1;
+        isLargeUploadInProgress = true;
+      }
+
+      const validationBuffer = await readValidationChunk(req.file.path);
 
       const uploadRequest = {
         fileName: req.file.originalname,
-        fileBuffer: fileBuffer,
+        validationBuffer,
+        tempFilePath: req.file.path,
         mimeType: req.file.mimetype,
         size: req.file.size,
         metadata: {
@@ -126,6 +169,10 @@ export class FileController {
         );
       }
 
+      if (isLargeUploadInProgress) {
+        activeLargeUploads = Math.max(0, activeLargeUploads - 1);
+      }
+
       res.status(201).json({
         success: true,
         data: result,
@@ -136,6 +183,10 @@ export class FileController {
         await fs.promises.unlink(tempFilePath).catch(err => 
           console.error('Error deleting temp file:', err)
         );
+      }
+
+      if (isLargeUploadInProgress) {
+        activeLargeUploads = Math.max(0, activeLargeUploads - 1);
       }
       next(error);
     }

@@ -1,6 +1,8 @@
 export interface UploadFileRequest {
   fileName: string;
-  fileBuffer: Buffer;
+  fileBuffer?: Buffer;
+  validationBuffer?: Buffer;
+  tempFilePath?: string;
   mimeType: string;
   size: number;
   metadata?: {

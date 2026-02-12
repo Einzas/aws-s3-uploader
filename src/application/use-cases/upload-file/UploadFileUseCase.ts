@@ -32,6 +32,9 @@ export class UploadFileUseCase
     });
 
     try {
+      const validationBuffer =
+        request.validationBuffer ?? request.fileBuffer ?? Buffer.alloc(0);
+
       // 1. Validate the file
       logger.validation('Starting file validation', {
         fileName: request.fileName,
@@ -40,7 +43,7 @@ export class UploadFileUseCase
       });
 
       const validationResult = await this.validationService.validateFile(
-        request.fileBuffer,
+        validationBuffer,
         request.fileName,
         request.mimeType,
         request.size
@@ -116,17 +119,33 @@ export class UploadFileUseCase
           fileSize: request.size,
         });
 
-        const uploadResult = await this.storageService.upload(
-          s3Key,
-          request.fileBuffer,
-          mimeType.toString(),
-          {
-            originalName: fileName.toString(),
-            uploadedBy: request.metadata?.uploadedBy || 'anonymous',
-            uploadedAt: new Date().toISOString(),
-            category: category,
-          }
-        );
+        const uploadMetadata = {
+          originalName: fileName.toString(),
+          uploadedBy: request.metadata?.uploadedBy || 'anonymous',
+          uploadedAt: new Date().toISOString(),
+          category: category,
+        };
+
+        const uploadResult =
+          request.tempFilePath && this.storageService.uploadFromFilePath
+            ? await this.storageService.uploadFromFilePath(
+                s3Key,
+                request.tempFilePath,
+                mimeType.toString(),
+                uploadMetadata
+              )
+            : request.fileBuffer
+              ? await this.storageService.upload(
+                  s3Key,
+                  request.fileBuffer,
+                  mimeType.toString(),
+                  uploadMetadata
+                )
+              : (() => {
+                  throw new ValidationError(
+                    'No file content available for upload'
+                  );
+                })();
 
         logger.s3('S3 upload successful', {
           fileId: fileEntity.getId().toString(),

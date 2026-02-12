@@ -17,6 +17,10 @@ export interface Config {
   upload: {
     maxFileSize: number;
     allowedFileTypes: string[];
+    largeFileThresholdBytes: number;
+    multipartPartSizeBytes: number;
+    multipartQueueSize: number;
+    maxConcurrentLargeUploads: number;
   };
   security: {
     jwtSecret: string;
@@ -41,6 +45,19 @@ export const config: Config = {
     allowedFileTypes:
       process.env.ALLOWED_FILE_TYPES?.split(',') ||
       FileCategoryHandler.getAllAllowedMimeTypes(),
+    largeFileThresholdBytes: parseInt(
+      process.env.LARGE_FILE_THRESHOLD_BYTES || '104857600',
+      10
+    ), // 100MB
+    multipartPartSizeBytes: parseInt(
+      process.env.MULTIPART_PART_SIZE_BYTES || '8388608',
+      10
+    ), // 8MB
+    multipartQueueSize: parseInt(process.env.MULTIPART_QUEUE_SIZE || '2', 10),
+    maxConcurrentLargeUploads: parseInt(
+      process.env.MAX_CONCURRENT_LARGE_UPLOADS || '2',
+      10
+    ),
   },
   security: {
     jwtSecret: process.env.JWT_SECRET || 'your-secret-here',
