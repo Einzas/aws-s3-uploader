@@ -120,17 +120,27 @@ export class S3FileStorageService implements FileStorageService {
         // Import dinámico para evitar dependencia circular
         const { uploadProgressTracker } = await import('@shared/services');
         
+        let lastLoggedPercent = -1;
+        
         upload.on('httpUploadProgress', (progress) => {
-          if (progress.loaded && progress.total) {
+          if (progress.loaded !== undefined && progress.total !== undefined) {
+            // Calcular parte actual basándose en bytes cargados
+            const partSize = config.upload.multipartPartSizeBytes;
+            const currentPart = Math.ceil(progress.loaded / partSize);
+            const totalParts = Math.ceil(progress.total / partSize);
             const percentage = Math.round((progress.loaded / progress.total) * 100);
-            const partNumber = progress.part || 0;
-            const totalParts = Math.ceil(progress.total / config.upload.multipartPartSizeBytes);
+            
+            // Log cada 10% para no spam
+            if (percentage >= lastLoggedPercent + 10) {
+              console.log(`🔄 [S3] httpUploadProgress: ${percentage}% (${progress.loaded}/${progress.total} bytes) - Parte ${currentPart}/${totalParts}`);
+              lastLoggedPercent = percentage;
+            }
             
             uploadProgressTracker.updateProgress(
               fileId,
               progress.loaded,
               'uploading',
-              partNumber,
+              currentPart,
               totalParts
             );
           }

@@ -27,7 +27,12 @@ class UploadProgressTrackerService {
    * Iniciar tracking de un nuevo upload
    */
   startTracking(fileId: string, fileName: string, totalSize: number): void {
-    console.log(`📊 [PROGRESS] Iniciando tracking de upload: ${fileName} (${this.formatBytes(totalSize)})`);
+    console.log(`\n========================================`);
+    console.log(`📊 [PROGRESS] INICIANDO TRACKING`);
+    console.log(`   FileId: ${fileId}`);
+    console.log(`   Archivo: ${fileName}`);
+    console.log(`   Tamaño: ${this.formatBytes(totalSize)}`);
+    console.log(`========================================\n`);
     
     this.progressMap.set(fileId, {
       fileId,
@@ -39,6 +44,8 @@ class UploadProgressTrackerService {
       startedAt: Date.now(),
       updatedAt: Date.now(),
     });
+    
+    console.log(`✅ [PROGRESS] Tracking almacenado en Map (total: ${this.progressMap.size} items)`);
   }
 
   /**

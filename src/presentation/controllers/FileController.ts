@@ -150,6 +150,9 @@ export class FileController {
       const { v4: uuidv4 } = await import('uuid');
       const fileId = uuidv4();
 
+      console.log(`🎯 [CONTROLLER] FileId generado: ${fileId}`);
+      console.log(`📁 [CONTROLLER] Archivo: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+
       // Start progress tracking immediately
       uploadProgressTracker.startTracking(
         fileId,
@@ -326,9 +329,13 @@ export class FileController {
   ): Promise<void> {
     try {
       const { fileId } = req.params;
+      console.log(`🔍 [API] Consultando progreso para fileId: ${fileId}`);
+      
       const progress = uploadProgressTracker.getProgress(fileId);
 
       if (!progress) {
+        console.log(`❌ [API] Progreso NO encontrado para: ${fileId}`);
+        console.log(`   Total en Map: ${uploadProgressTracker.getAllProgress().length} items`);
         res.status(404).json({
           success: false,
           error: {
@@ -338,6 +345,8 @@ export class FileController {
         });
         return;
       }
+      
+      console.log(`✅ [API] Progreso encontrado: ${progress.percentage}% - ${progress.status}`);
 
       res.json({
         success: true,
