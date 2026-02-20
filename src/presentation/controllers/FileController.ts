@@ -85,10 +85,27 @@ export class FileController {
     // List files (with optional category filter)
     this.router.get('/', this.listFiles.bind(this));
 
-    // Upload file
+    // Upload file with pre-multer logging
     this.router.post(
       '/upload',
+      (req, res, next) => {
+        console.log('\n🚨 ============ POST /upload RECIBIDO ============');
+        console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('📦 Content-Type:', req.headers['content-type']);
+        console.log('📏 Content-Length:', req.headers['content-length']);
+        console.log('🔧 Body keys:', Object.keys(req.body));
+        console.log('=================================================\n');
+        next();
+      },
       upload.single('file'),
+      (req, res, next) => {
+        console.log('\n✅ ============ MULTER COMPLETADO ============');
+        console.log('📁 File:', req.file ? req.file.originalname : 'NO FILE');
+        console.log('📋 Body fields:', Object.keys(req.body));
+        console.log('🆔 FileId from body:', req.body.fileId);
+        console.log('==============================================\n');
+        next();
+      },
       this.uploadFile.bind(this)
     );
 

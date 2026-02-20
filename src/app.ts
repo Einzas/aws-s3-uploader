@@ -74,6 +74,19 @@ class App {
     // Trust proxy - necesario cuando estás detrás de nginx/load balancer
     this.app.set('trust proxy', 1);
 
+    // DEBUG: Log TODOS los requests antes de cualquier middleware
+    this.app.use((req, res, next) => {
+      if (req.method === 'POST' && req.path.includes('upload')) {
+        console.log('\n🔥🔥🔥 REQUEST DETECTADO ANTES DE TODO 🔥🔥🔥');
+        console.log('Method:', req.method);
+        console.log('Path:', req.path);
+        console.log('URL:', req.url);
+        console.log('Headers:', req.headers);
+        console.log('🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥\n');
+      }
+      next();
+    });
+
     // Security middleware
     this.app.use(helmet());
 
