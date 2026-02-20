@@ -1,28 +1,12 @@
 /**
  * Sistema de tracking de progreso para uploads
  * Permite consultar el progreso en tiempo real de uploads en curso
+ * USA FILESYSTEM PARA COMPARTIR ENTRE WORKERS DE PM2 EN CLUSTER MODE
  */
 
-export interface UploadProgress {
-  fileId: string;
-  fileName: string;
-  totalSize: number;
-  uploadedSize: number;
-  percentage: number;
-  status: 'validating' | 'uploading' | 'completed' | 'failed' | 'pending';
-  currentPart?: number;
-  totalParts?: number;
-  speed?: number; // bytes por segundo
-  estimatedTimeRemaining?: number; // segundos
-  startedAt: number;
-  updatedAt: number;
-  error?: string;
-}
+import { sharedProgressStore, UploadProgress } from './SharedProgressStore';
 
 class UploadProgressTrackerService {
-  private progressMap: Map<string, UploadProgress> = new Map();
-  private readonly MAX_RETENTION_TIME = 5 * 60 * 1000; // 5 minutos
-
   /**
    * Iniciar tracking de un nuevo upload
    */
@@ -32,9 +16,10 @@ class UploadProgressTrackerService {
     console.log(`   FileId: ${fileId}`);
     console.log(`   Archivo: ${fileName}`);
     console.log(`   Tamaño: ${this.formatBytes(totalSize)}`);
+    console.log(`   Worker: ${process.pid}`);
     console.log(`========================================\n`);
     
-    this.progressMap.set(fileId, {
+    const progress: UploadProgress = {
       fileId,
       fileName,
       totalSize,
@@ -43,9 +28,11 @@ class UploadProgressTrackerService {
       status: 'pending',
       startedAt: Date.now(),
       updatedAt: Date.now(),
-    });
+    };
+
+    sharedProgressStore.set(fileId, progress);
     
-    console.log(`✅ [PROGRESS] Tracking almacenado en Map (total: ${this.progressMap.size} items)`);
+    console.log(`✅ [PROGRESS] Tracking almacenado en FileSystem (worker: ${process.pid})`);
   }
 
   /**
@@ -58,7 +45,7 @@ class UploadProgressTrackerService {
     currentPart?: number,
     totalParts?: number
   ): void {
-    const progress = this.progressMap.get(fileId);
+    const progress = sharedProgressStore.get(fileId);
     if (!progress) {
       return;
     }
@@ -107,14 +94,14 @@ class UploadProgressTrackerService {
     
     console.log(logMsg);
 
-    this.progressMap.set(fileId, progress);
+    sharedProgressStore.set(fileId, progress);
   }
 
   /**
    * Marcar upload como completado
    */
   completeUpload(fileId: string): void {
-    const progress = this.progressMap.get(fileId);
+    const progress = sharedProgressStore.get(fileId);
     if (progress) {
       progress.status = 'completed';
       progress.percentage = 100;
@@ -130,7 +117,7 @@ class UploadProgressTrackerService {
         `(${this.formatSpeed(avgSpeed)})`
       );
       
-      this.progressMap.set(fileId, progress);
+      sharedProgressStore.set(fileId, progress);
       
       // Limpiar después de 30 segundos
       setTimeout(() => this.removeProgress(fileId), 30000);
@@ -141,7 +128,7 @@ class UploadProgressTrackerService {
    * Marcar upload como fallido
    */
   failUpload(fileId: string, error: string): void {
-    const progress = this.progressMap.get(fileId);
+    const progress = sharedProgressStore.get(fileId);
     if (progress) {
       progress.status = 'failed';
       progress.error = error;
@@ -149,7 +136,7 @@ class UploadProgressTrackerService {
       
       console.log(`❌ [PROGRESS] Upload fallido: ${progress.fileName} - ${error}`);
       
-      this.progressMap.set(fileId, progress);
+      sharedProgressStore.set(fileId, progress);
       
       // Limpiar después de 1 minuto
       setTimeout(() => this.removeProgress(fileId), 60000);
@@ -160,41 +147,28 @@ class UploadProgressTrackerService {
    * Obtener progreso de un upload específico
    */
   getProgress(fileId: string): UploadProgress | null {
-    return this.progressMap.get(fileId) || null;
+    return sharedProgressStore.get(fileId);
   }
 
   /**
    * Obtener todos los uploads en progreso
    */
   getAllProgress(): UploadProgress[] {
-    return Array.from(this.progressMap.values());
+    return sharedProgressStore.getAll();
   }
 
   /**
    * Eliminar progreso de un upload
    */
   removeProgress(fileId: string): void {
-    this.progressMap.delete(fileId);
+    sharedProgressStore.delete(fileId);
   }
 
   /**
    * Limpiar uploads antiguos
    */
   cleanup(): void {
-    const now = Date.now();
-    let cleaned = 0;
-    
-    for (const [fileId, progress] of this.progressMap.entries()) {
-      const age = now - progress.updatedAt;
-      if (age > this.MAX_RETENTION_TIME) {
-        this.progressMap.delete(fileId);
-        cleaned++;
-      }
-    }
-    
-    if (cleaned > 0) {
-      console.log(`🧹 [PROGRESS] Limpiados ${cleaned} registros de progreso antiguos`);
-    }
+    sharedProgressStore.cleanup();
   }
 
   /**
