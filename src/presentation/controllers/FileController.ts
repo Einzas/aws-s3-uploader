@@ -113,6 +113,9 @@ export class FileController {
     res: Response,
     next: NextFunction
   ): Promise<void> {
+    let tempFilePath: string | undefined;
+    let isLargeUploadInProgress = false;
+    
     try {
       if (!req.file) {
         res.status(400).json({
@@ -124,7 +127,7 @@ export class FileController {
         return;
       }
 
-      // Check large upload limits immediately
+      tempFilePath = req.file.path;
       const isLargeFile =
         req.file.size >= config.upload.largeFileThresholdBytes;
 
@@ -132,9 +135,7 @@ export class FileController {
         if (
           activeLargeUploads >= config.upload.maxConcurrentLargeUploads
         ) {
-          // Clean up temp file before returning
-          await fs.promises.unlink(req.file.path).catch(() => {});
-          
+          await fs.promises.unlink(tempFilePath).catch(() => {});
           res.status(429).json({
             error: {
               code: 'TOO_MANY_LARGE_UPLOADS',
@@ -144,84 +145,40 @@ export class FileController {
           });
           return;
         }
-      }
-
-      // Generate fileId immediately (same logic as FileId.create())
-      const { v4: uuidv4 } = await import('uuid');
-      const fileId = uuidv4();
-
-      console.log(`🎯 [CONTROLLER] FileId generado: ${fileId}`);
-      console.log(`📁 [CONTROLLER] Archivo: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
-
-      // Start progress tracking immediately
-      uploadProgressTracker.startTracking(
-        fileId,
-        req.file.originalname,
-        req.file.size
-      );
-
-      // Return 202 Accepted immediately with fileId
-      res.status(202).json({
-        success: true,
-        message: 'Upload started',
-        data: {
-          fileId,
-          fileName: req.file.originalname,
-          size: req.file.size,
-          mimeType: req.file.mimetype,
-          status: 'pending',
-        },
-      });
-
-      // Process upload in background (no await)
-      this.processUploadInBackground(
-        fileId,
-        req.file,
-        req.body,
-        isLargeFile
-      ).catch((error) => {
-        console.error('Background upload failed:', error);
-        uploadProgressTracker.failUpload(fileId, error.message);
-      });
-
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  private async processUploadInBackground(
-    fileId: string,
-    file: Express.Multer.File,
-    body: any,
-    isLargeFile: boolean
-  ): Promise<void> {
-    let isLargeUploadInProgress = false;
-    const tempFilePath = file.path;
-
-    try {
-      if (isLargeFile) {
         activeLargeUploads += 1;
         isLargeUploadInProgress = true;
       }
 
-      const validationBuffer = await readValidationChunk(file.path);
+      // Get fileId from frontend or generate new one
+      const fileId = req.body.fileId || (() => {
+        const { v4: uuidv4 } = require('uuid');
+        return uuidv4();
+      })();
+
+      console.log(`\n========== UPLOAD START ==========`);
+      console.log(`🎯 FileId: ${fileId}`);
+      console.log(`📁 Archivo: ${req.file.originalname}`);
+      console.log(`📦 Tamaño: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`==================================\n`);
+
+      const validationBuffer = await readValidationChunk(req.file.path);
 
       const uploadRequest = {
-        fileId, // Pass pre-generated fileId
-        fileName: file.originalname,
+        fileId, // Use fileId from frontend or generated
+        fileName: req.file.originalname,
         validationBuffer,
-        tempFilePath: file.path,
-        mimeType: file.mimetype,
-        size: file.size,
+        tempFilePath: req.file.path,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
         metadata: {
-          uploadedBy: body.uploadedBy || 'anonymous',
-          description: body.description,
-          tags: body.tags ? JSON.parse(body.tags) : undefined,
+          uploadedBy: req.body.uploadedBy || 'anonymous',
+          description: req.body.description,
+          tags: req.body.tags ? JSON.parse(req.body.tags) : undefined,
         },
       };
 
-      // Execute upload (this will take time, but client already has response)
-      await this.dependencies.uploadFileUseCase.execute(uploadRequest);
+      // Execute upload synchronously (tracking updates during upload)
+      const result = await this.dependencies.uploadFileUseCase.execute(uploadRequest);
 
       // Clean up temp file after successful upload
       await fs.promises.unlink(tempFilePath).catch((err) =>
@@ -231,17 +188,29 @@ export class FileController {
       if (isLargeUploadInProgress) {
         activeLargeUploads = Math.max(0, activeLargeUploads - 1);
       }
+
+      console.log(`\n========== UPLOAD COMPLETE ==========`);
+      console.log(`✅ FileId: ${fileId}`);
+      console.log(`🔗 URL: ${result.url}`);
+      console.log(`====================================\n`);
+
+      res.status(201).json({
+        success: true,
+        data: result,
+      });
     } catch (error) {
       // Clean up temp file on error
-      await fs.promises.unlink(tempFilePath).catch((err) =>
-        console.error('Error deleting temp file:', err)
-      );
+      if (tempFilePath) {
+        await fs.promises.unlink(tempFilePath).catch((err) =>
+          console.error('Error deleting temp file:', err)
+        );
+      }
 
       if (isLargeUploadInProgress) {
         activeLargeUploads = Math.max(0, activeLargeUploads - 1);
       }
 
-      throw error;
+      next(error);
     }
   }
 
