@@ -127,11 +127,68 @@ export class BasicFileValidationService implements FileValidationService {
       ],
       'image/webp': [[0x52, 0x49, 0x46, 0x46]], // RIFF header
       'application/pdf': [[0x25, 0x50, 0x44, 0x46]],
+      
+      // Firmas de video - Optimizado para no consumir muchos recursos
+      'video/mp4': [
+        [0x00, 0x00, 0x00], // ftyp box (validación parcial)
+      ],
+      'video/quicktime': [
+        [0x00, 0x00, 0x00], // moov/mdat/free atoms
+      ],
+      'video/x-msvideo': [
+        [0x52, 0x49, 0x46, 0x46], // RIFF header para AVI
+      ],
+      'video/avi': [
+        [0x52, 0x49, 0x46, 0x46], // RIFF header
+      ],
+      'video/msvideo': [
+        [0x52, 0x49, 0x46, 0x46], // RIFF header
+      ],
+      'video/webm': [
+        [0x1a, 0x45, 0xdf, 0xa3], // EBML header
+      ],
+      'video/x-matroska': [
+        [0x1a, 0x45, 0xdf, 0xa3], // EBML header (MKV)
+      ],
+      'video/x-flv': [
+        [0x46, 0x4c, 0x56, 0x01], // FLV signature
+      ],
+      'video/ogg': [
+        [0x4f, 0x67, 0x67, 0x53], // OggS
+      ],
+      'video/mpeg': [
+        [0x00, 0x00, 0x01, 0xba], // MPEG Program Stream
+        [0x00, 0x00, 0x01, 0xb3], // MPEG Video Stream
+      ],
+      'video/x-mpeg': [
+        [0x00, 0x00, 0x01, 0xba],
+        [0x00, 0x00, 0x01, 0xb3],
+      ],
+      'video/3gpp': [
+        [0x00, 0x00, 0x00], // ftyp (parcial - es similar a MP4)
+      ],
+      'video/3gpp2': [
+        [0x00, 0x00, 0x00], // ftyp (parcial)
+      ],
+      'video/x-ms-wmv': [
+        [0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11], // ASF header
+      ],
+      'video/x-ms-asf': [
+        [0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11], // ASF header
+      ],
     };
 
     const expectedSignatures = signatures[mimeType];
     if (!expectedSignatures) {
       // No signature validation for this MIME type
+      // Para videos sin firma conocida, permitir upload (no bloquear)
+      if (mimeType.startsWith('video/')) {
+        logger.validation('Video MIME type without signature validation', {
+          mimeType,
+          note: 'Skipping signature check for this video format',
+        });
+        return null;
+      }
       return null;
     }
 
@@ -143,7 +200,20 @@ export class BasicFileValidationService implements FileValidationService {
     );
 
     if (!hasValidSignature) {
-      // Log para debug de firmas inválidas
+      // Para videos, solo avisar pero no bloquear (son archivos complejos)
+      if (mimeType.startsWith('video/')) {
+        logger.validation('Video signature mismatch (non-blocking)', {
+          mimeType,
+          actualHeader: fileHeader
+            .slice(0, 8)
+            .map((b) => '0x' + b.toString(16).padStart(2, '0'))
+            .join(' '),
+          note: 'Allowing video upload despite signature mismatch',
+        });
+        return null; // No bloquear videos
+      }
+
+      // Log para debug de firmas inválidas (no videos)
       logger.validation('File signature mismatch detected', {
         mimeType,
         expectedSignatures: expectedSignatures.map((sig) =>

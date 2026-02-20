@@ -16,7 +16,7 @@ import {
   DeleteFileUseCase,
   ListFilesByCategoryUseCase,
 } from '@application/use-cases';
-import { S3FileStorageService } from '@infrastructure/storage';
+import { S3FileStorageService, getCleanupService } from '@infrastructure/storage';
 import { BasicFileValidationService } from '@infrastructure/validation';
 import { InMemoryFileRepository } from '@infrastructure/repositories';
 
@@ -155,6 +155,16 @@ class App {
   public start(): void {
     try {
       validateConfig();
+
+      // Iniciar servicio de limpieza automática de archivos temporales
+      const cleanupService = getCleanupService({
+        maxAge: 60 * 60 * 1000, // 1 hora
+        checkInterval: 5 * 60 * 1000, // 5 minutos
+      });
+      cleanupService.start();
+      logger.info('Temp file cleanup service started', {
+        category: 'application' as any,
+      });
 
       this.app.listen(config.server.port, () => {
         logger.info(`Server is running on port ${config.server.port}`, {

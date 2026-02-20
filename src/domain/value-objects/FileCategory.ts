@@ -35,18 +35,85 @@ export class FileCategoryHandler {
         'application/json',
       ],
       [FileCategory.VIDEOS]: [
+        // Formatos comunes y modernos
         'video/mp4',
         'video/mpeg',
-        'video/quicktime',
+        'video/quicktime', // .mov
         'video/x-msvideo', // .avi
-        'video/x-ms-wmv',
+        'video/x-ms-wmv', // .wmv
         'video/webm',
-        'video/3gpp',
-        'video/x-flv',
-        'video/ogg',
         'video/x-matroska', // .mkv
-        'video/3gpp2', // .3gp2
-        'video/3gpp', // .3g
+        'video/x-flv', // .flv
+        'video/ogg',
+        
+        // Formatos móviles
+        'video/3gpp', // .3gp
+        'video/3gpp2', // .3g2
+        
+        // Formatos MPEG adicionales
+        'video/x-mpeg',
+        'video/mp2t', // MPEG transport stream
+        'video/mp2p', // MPEG program stream
+        'video/mpeg4-generic',
+        
+        // Formatos Windows/Microsoft
+        'video/x-ms-asf',
+        'video/x-ms-wm',
+        'video/x-ms-wmx',
+        'video/x-ms-wvx',
+        'video/msvideo',
+        'video/avi',
+        
+        // Formatos QuickTime/Apple
+        'video/x-quicktime',
+        
+        // Formatos Flash
+        'video/x-f4v',
+        'video/f4v',
+        'video/x-fli',
+        
+        // H.264/H.265
+        'video/h264',
+        'video/h265',
+        'video/hevc', // High Efficiency Video Coding
+        
+        // Otros formatos
+        'video/divx',
+        'video/vnd.divx',
+        'video/x-divx',
+        'video/x-dv',
+        'video/dv',
+        'video/vnd.mpegurl', // .m3u8 (HLS)
+        'video/x-m4v',
+        'video/m4v',
+        'video/MP2T', // transport stream (case variation)
+        'video/x-mpegurl',
+        'application/x-mpegURL', // HLS playlist
+        'application/vnd.apple.mpegurl', // HLS playlist Apple
+        'video/vnd.youtube.yt',
+        'video/youtube',
+        
+        // Formatos AVCHD
+        'video/avchd',
+        'video/x-avchd',
+        
+        // VP8/VP9 (usado en WebM)
+        'video/vp8',
+        'video/vp9',
+        
+        // AV1 (codec moderno)
+        'video/av1',
+        
+        // Formatos adicionales raros pero válidos
+        'video/x-motion-jpeg',
+        'video/mjpeg',
+        'video/vnd.rn-realvideo',
+        'video/x-theora',
+        'video/x-xvid',
+        
+        // Formatos de video sin compresión
+        'video/raw',
+        'video/x-raw',
       ],
       [FileCategory.AUDIO]: [
         'audio/mpeg', // .mp3
