@@ -85,6 +85,9 @@ export class FileController {
     // List files (with optional category filter)
     this.router.get('/', this.listFiles.bind(this));
 
+    // Start upload tracking (BEFORE sending file)
+    this.router.post('/upload/start', this.startUploadTracking.bind(this));
+
     // Upload file with pre-multer logging
     this.router.post(
       '/upload',
@@ -123,6 +126,49 @@ export class FileController {
 
     // Health check
     this.router.get('/health', this.healthCheck.bind(this));
+  }
+
+  /**
+   * Iniciar tracking de upload ANTES de enviar el archivo
+   * POST /api/files/upload/start
+   * Body: { fileId, fileName, fileSize }
+   */
+  private async startUploadTracking(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { fileId, fileName, fileSize } = req.body;
+
+      if (!fileId || !fileName || !fileSize) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_PARAMETERS',
+            message: 'Se requieren fileId, fileName y fileSize',
+          },
+        });
+        return;
+      }
+
+      console.log(`\n🎬 ============ INICIANDO TRACKING ============`);
+      console.log(`🆔 FileId: ${fileId}`);
+      console.log(`📁 FileName: ${fileName}`);
+      console.log(`📦 FileSize: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`==============================================\n`);
+
+      // Iniciar tracking inmediatamente
+      uploadProgressTracker.startTracking(fileId, fileName, fileSize);
+
+      res.json({
+        success: true,
+        message: 'Tracking iniciado',
+        data: { fileId },
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   private async uploadFile(
@@ -177,6 +223,14 @@ export class FileController {
       console.log(`📁 Archivo: ${req.file.originalname}`);
       console.log(`📦 Tamaño: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
       console.log(`==================================\n`);
+
+      // Iniciar tracking si no existe (puede que ya se haya iniciado con /upload/start)
+      const existingProgress = uploadProgressTracker.getProgress(fileId);
+      if (!existingProgress) {
+        uploadProgressTracker.startTracking(fileId, req.file.originalname, req.file.size);
+      } else {
+        console.log(`📊 Tracking ya existía, continuando...`);
+      }
 
       const validationBuffer = await readValidationChunk(req.file.path);
 
