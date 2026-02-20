@@ -80,18 +80,22 @@ export class S3FileStorageService implements FileStorageService {
     key: S3Key,
     filePath: string,
     mimeType: string,
-    metadata?: Record<string, string>
+    metadata?: Record<string, string>,
+    fileId?: string
   ): Promise<UploadResult> {
     const startTime = Date.now();
 
     try {
       const fileStream = fs.createReadStream(filePath);
+      const fileStats = await fs.promises.stat(filePath);
+      const totalSize = fileStats.size;
 
       logger.s3('Starting S3 multipart upload from file path', {
         key: key.toString(),
         mimeType,
         bucket: this.bucketName,
         filePath,
+        fileSize: totalSize,
         queueSize: config.upload.multipartQueueSize,
         partSize: config.upload.multipartPartSizeBytes,
       });
@@ -110,6 +114,28 @@ export class S3FileStorageService implements FileStorageService {
         partSize: config.upload.multipartPartSizeBytes,
         leavePartsOnError: false,
       });
+
+      // Monitorear progreso
+      if (fileId) {
+        // Import dinámico para evitar dependencia circular
+        const { uploadProgressTracker } = await import('@shared/services');
+        
+        upload.on('httpUploadProgress', (progress) => {
+          if (progress.loaded && progress.total) {
+            const percentage = Math.round((progress.loaded / progress.total) * 100);
+            const partNumber = progress.part || 0;
+            const totalParts = Math.ceil(progress.total / config.upload.multipartPartSizeBytes);
+            
+            uploadProgressTracker.updateProgress(
+              fileId,
+              progress.loaded,
+              'uploading',
+              partNumber,
+              totalParts
+            );
+          }
+        });
+      }
 
       const result = await upload.done();
 

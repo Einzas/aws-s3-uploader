@@ -138,14 +138,14 @@ class LoggerService {
       performanceFileTransport,
     ];
 
-    // En desarrollo, también mostrar en consola
-    if (!this.isProduction) {
-      transports.push(
-        new winston.transports.Console({
-          format: consoleFormat,
-        })
-      );
-    }
+    // SIEMPRE mostrar en consola para PM2 logs
+    // Esto permite ver los logs con: pm2 logs
+    transports.push(
+      new winston.transports.Console({
+        format: consoleFormat,
+        level: this.isProduction ? 'info' : 'debug',
+      })
+    );
 
     return winston.createLogger({
       level: this.isProduction ? 'info' : 'debug',

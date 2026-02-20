@@ -3,6 +3,7 @@ import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { config } from '@shared/config';
+import { uploadProgressTracker } from '@shared/services';
 import {
   UploadFileUseCase,
   GetFileUseCase,
@@ -90,6 +91,12 @@ export class FileController {
       upload.single('file'),
       this.uploadFile.bind(this)
     );
+
+    // Get upload progress
+    this.router.get('/progress/:fileId', this.getUploadProgress.bind(this));
+
+    // Get all uploads in progress
+    this.router.get('/progress', this.getAllProgress.bind(this));
 
     // Get file metadata
     this.router.get('/:fileId', this.getFile.bind(this));
@@ -263,6 +270,89 @@ export class FileController {
       timestamp: new Date().toISOString(),
       service: 'file-upload-service',
     });
+  }
+
+  /**
+   * Obtener progreso de un upload específico
+   * GET /api/files/progress/:fileId
+   */
+  private async getUploadProgress(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { fileId } = req.params;
+      const progress = uploadProgressTracker.getProgress(fileId);
+
+      if (!progress) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'PROGRESS_NOT_FOUND',
+            message: 'No se encontró progreso para este archivo. Puede que el upload haya terminado o no haya comenzado.',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          fileId: progress.fileId,
+          fileName: progress.fileName,
+          status: progress.status,
+          percentage: progress.percentage,
+          uploadedSize: progress.uploadedSize,
+          totalSize: progress.totalSize,
+          currentPart: progress.currentPart,
+          totalParts: progress.totalParts,
+          speed: progress.speed,
+          estimatedTimeRemaining: progress.estimatedTimeRemaining,
+          startedAt: new Date(progress.startedAt).toISOString(),
+          updatedAt: new Date(progress.updatedAt).toISOString(),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener todos los uploads en progreso
+   * GET /api/files/progress
+   */
+  private async getAllProgress(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const allProgress = uploadProgressTracker.getAllProgress();
+
+      res.json({
+        success: true,
+        data: {
+          uploads: allProgress.map(progress => ({
+            fileId: progress.fileId,
+            fileName: progress.fileName,
+            status: progress.status,
+            percentage: progress.percentage,
+            uploadedSize: progress.uploadedSize,
+            totalSize: progress.totalSize,
+            currentPart: progress.currentPart,
+            totalParts: progress.totalParts,
+            speed: progress.speed,
+            estimatedTimeRemaining: progress.estimatedTimeRemaining,
+            startedAt: new Date(progress.startedAt).toISOString(),
+            updatedAt: new Date(progress.updatedAt).toISOString(),
+          })),
+          total: allProgress.length,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   getRouter(): Router {

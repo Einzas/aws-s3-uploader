@@ -1,7 +1,7 @@
 import { UseCase } from '@application/common';
 import { UploadFileRequest, UploadFileResponse } from './UploadFileDto';
 import { ValidationError, SecurityError } from '@application/common';
-import { logger, LogCategory } from '@shared/services';
+import { logger, LogCategory, uploadProgressTracker } from '@shared/services';
 import { config } from '@shared/config';
 import {
   FileEntity,
@@ -98,14 +98,34 @@ export class UploadFileUseCase
         fileName: fileEntity.getName().toString(),
       });
 
+      // Iniciar tracking de progreso
+      uploadProgressTracker.startTracking(
+        fileEntity.getId().toString(),
+        fileName.toString(),
+        request.size
+      );
+
       try {
         // 4. Save file metadata first
         await this.fileRepository.save(fileEntity);
+        
+        uploadProgressTracker.updateProgress(
+          fileEntity.getId().toString(),
+          0,
+          'validating'
+        );
+        
         logger.upload('File metadata saved to repository', {
           fileId: fileEntity.getId().toString(),
         });
 
         // 5. Mark as uploading
+        uploadProgressTracker.updateProgress(
+          fileEntity.getId().toString(),
+          0,
+          'uploading'
+        );
+        
         fileEntity.markAsUploading();
         await this.fileRepository.update(fileEntity);
         logger.upload('File marked as uploading', {
@@ -132,7 +152,8 @@ export class UploadFileUseCase
                 s3Key,
                 request.tempFilePath,
                 mimeType.toString(),
-                uploadMetadata
+                uploadMetadata,
+                fileEntity.getId().toString()
               )
             : request.fileBuffer
               ? await this.storageService.upload(
@@ -156,6 +177,9 @@ export class UploadFileUseCase
         // 7. Mark as uploaded
         fileEntity.markAsUploaded(uploadResult.url);
         await this.fileRepository.update(fileEntity);
+
+        // Marcar progreso como completado
+        uploadProgressTracker.completeUpload(fileEntity.getId().toString());
 
         logger.upload('File upload completed successfully', {
           fileId: fileEntity.getId().toString(),
@@ -184,6 +208,13 @@ export class UploadFileUseCase
         try {
           fileEntity.markAsFailed();
           await this.fileRepository.update(fileEntity);
+          
+          // Marcar progreso como fallido
+          uploadProgressTracker.failUpload(
+            fileEntity.getId().toString(),
+            error instanceof Error ? error.message : 'Unknown error'
+          );
+          
           logger.error('File marked as failed', error, {
             category: LogCategory.UPLOAD,
             fileId: fileEntity.getId().toString(),

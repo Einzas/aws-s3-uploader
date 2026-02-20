@@ -18,7 +18,8 @@ export interface FileStorageService {
     key: S3Key,
     filePath: string,
     mimeType: string,
-    metadata?: Record<string, string>
+    metadata?: Record<string, string>,
+    fileId?: string
   ): Promise<UploadResult>;
 
   delete(key: S3Key): Promise<void>;
