@@ -5,6 +5,7 @@ import { logger, LogCategory, uploadProgressTracker } from '@shared/services';
 import { config } from '@shared/config';
 import {
   FileEntity,
+  FileId,
   FileName,
   FileSize,
   MimeType,
@@ -84,13 +85,18 @@ export class UploadFileUseCase
         fileCategory: category,
       });
 
-      // 3. Create file entity
+      // 3. Create file entity (use pre-generated ID if provided)
+      const preGeneratedId = request.fileId 
+        ? FileId.fromString(request.fileId)
+        : undefined;
+      
       const fileEntity = FileEntity.create(
         fileName,
         fileSize,
         mimeType,
         s3Key,
-        request.metadata || {}
+        request.metadata || {},
+        preGeneratedId
       );
 
       logger.upload('File entity created', {

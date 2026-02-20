@@ -1,4 +1,5 @@
 export interface UploadFileRequest {
+  fileId?: string; // Pre-generated fileId for async processing
   fileName: string;
   fileBuffer?: Buffer;
   validationBuffer?: Buffer;

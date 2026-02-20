@@ -113,9 +113,6 @@ export class FileController {
     res: Response,
     next: NextFunction
   ): Promise<void> {
-    let tempFilePath: string | undefined;
-    let isLargeUploadInProgress = false;
-    
     try {
       if (!req.file) {
         res.status(400).json({
@@ -127,9 +124,7 @@ export class FileController {
         return;
       }
 
-      // Guardar path del archivo temporal para limpieza
-      tempFilePath = req.file.path;
-
+      // Check large upload limits immediately
       const isLargeFile =
         req.file.size >= config.upload.largeFileThresholdBytes;
 
@@ -137,6 +132,9 @@ export class FileController {
         if (
           activeLargeUploads >= config.upload.maxConcurrentLargeUploads
         ) {
+          // Clean up temp file before returning
+          await fs.promises.unlink(req.file.path).catch(() => {});
+          
           res.status(429).json({
             error: {
               code: 'TOO_MANY_LARGE_UPLOADS',
@@ -146,56 +144,101 @@ export class FileController {
           });
           return;
         }
+      }
 
+      // Generate fileId immediately (same logic as FileId.create())
+      const { v4: uuidv4 } = await import('uuid');
+      const fileId = uuidv4();
+
+      // Start progress tracking immediately
+      uploadProgressTracker.startTracking(
+        fileId,
+        req.file.originalname,
+        req.file.size
+      );
+
+      // Return 202 Accepted immediately with fileId
+      res.status(202).json({
+        success: true,
+        message: 'Upload started',
+        data: {
+          fileId,
+          fileName: req.file.originalname,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          status: 'pending',
+        },
+      });
+
+      // Process upload in background (no await)
+      this.processUploadInBackground(
+        fileId,
+        req.file,
+        req.body,
+        isLargeFile
+      ).catch((error) => {
+        console.error('Background upload failed:', error);
+        uploadProgressTracker.failUpload(fileId, error.message);
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  private async processUploadInBackground(
+    fileId: string,
+    file: Express.Multer.File,
+    body: any,
+    isLargeFile: boolean
+  ): Promise<void> {
+    let isLargeUploadInProgress = false;
+    const tempFilePath = file.path;
+
+    try {
+      if (isLargeFile) {
         activeLargeUploads += 1;
         isLargeUploadInProgress = true;
       }
 
-      const validationBuffer = await readValidationChunk(req.file.path);
+      const validationBuffer = await readValidationChunk(file.path);
 
       const uploadRequest = {
-        fileName: req.file.originalname,
+        fileId, // Pass pre-generated fileId
+        fileName: file.originalname,
         validationBuffer,
-        tempFilePath: req.file.path,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
+        tempFilePath: file.path,
+        mimeType: file.mimetype,
+        size: file.size,
         metadata: {
-          uploadedBy: req.body.uploadedBy || 'anonymous',
-          description: req.body.description,
-          tags: req.body.tags ? JSON.parse(req.body.tags) : undefined,
+          uploadedBy: body.uploadedBy || 'anonymous',
+          description: body.description,
+          tags: body.tags ? JSON.parse(body.tags) : undefined,
         },
       };
 
-      const result =
-        await this.dependencies.uploadFileUseCase.execute(uploadRequest);
+      // Execute upload (this will take time, but client already has response)
+      await this.dependencies.uploadFileUseCase.execute(uploadRequest);
 
-      // Limpiar archivo temporal después de upload exitoso
-      if (tempFilePath) {
-        await fs.promises.unlink(tempFilePath).catch(err => 
-          console.error('Error deleting temp file:', err)
-        );
-      }
+      // Clean up temp file after successful upload
+      await fs.promises.unlink(tempFilePath).catch((err) =>
+        console.error('Error deleting temp file:', err)
+      );
 
       if (isLargeUploadInProgress) {
         activeLargeUploads = Math.max(0, activeLargeUploads - 1);
       }
-
-      res.status(201).json({
-        success: true,
-        data: result,
-      });
     } catch (error) {
-      // Limpiar archivo temporal en caso de error
-      if (tempFilePath) {
-        await fs.promises.unlink(tempFilePath).catch(err => 
-          console.error('Error deleting temp file:', err)
-        );
-      }
+      // Clean up temp file on error
+      await fs.promises.unlink(tempFilePath).catch((err) =>
+        console.error('Error deleting temp file:', err)
+      );
 
       if (isLargeUploadInProgress) {
         activeLargeUploads = Math.max(0, activeLargeUploads - 1);
       }
-      next(error);
+
+      throw error;
     }
   }
 

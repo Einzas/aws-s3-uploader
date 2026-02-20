@@ -41,10 +41,11 @@ export class FileEntity {
     size: FileSize,
     mimeType: MimeType,
     s3Key: S3Key,
-    metadata: FileMetadata = {}
+    metadata: FileMetadata = {},
+    id?: FileId // Optional pre-generated ID for async processing
   ): FileEntity {
     return new FileEntity(
-      FileId.create(),
+      id || FileId.create(),
       name,
       size,
       mimeType,
